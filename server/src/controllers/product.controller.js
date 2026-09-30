@@ -100,3 +100,67 @@ export const listProducts = async (req, res)=>{
         message: "Product published successfully"
     })
 }
+
+export const deleteProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const product = await productModel.findOne({
+            _id: id,   
+            seller: req.user.userId
+        });
+
+        if (!product) {
+            return res.status(404).json({
+                message: "Product not found or you are not the owner"
+            });
+        }
+
+        await productModel.findByIdAndDelete(id);
+
+        return res.status(200).json({
+            message: "Product deleted successfully"
+        });
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            message: "Internal server error"
+        });
+    }
+};
+
+
+export const updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const updatedProduct = await productModel.findByIdAndUpdate(
+      id,
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Product updated successfully",
+      product: updatedProduct,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

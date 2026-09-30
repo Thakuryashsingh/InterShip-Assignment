@@ -14,7 +14,7 @@ const productSchema = mongoose.Schema({
         maxLenght:500
     },
     images:{
-        type:[{
+        type:[{  
             type: String
         }],
         validate:{

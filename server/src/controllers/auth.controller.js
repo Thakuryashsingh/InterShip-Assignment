@@ -104,69 +104,83 @@ export const login = async (req,res)=>{
     })
 }
 
-export const refresh = async (req, res)=>{
-    const { refreshToken } = req.cookies
+export const refresh = async (req, res) => {
+  const { refreshToken } = req.cookies?.refreshToken;
 
-    if(!refreshToken){
-        return res.status(401).json({
-            message: "refresh token is required"
-        })
+  console.log("COOKIE REFRESH TOKEN:", refreshToken);
+
+  if (!refreshToken) {
+    return res.status(401).json({
+      message: "refresh token is required",
+    });
+  }
+
+  try {
+    const decode = readRefreshToken(refreshToken);
+
+    console.log("DECODED TOKEN:", decode);
+
+    const { userId, role } = decode;
+
+    const user = await userModel.findById(userId);
+
+    console.log("USER FOUND:", !!user);
+
+    if (!user) {
+      return res.status(401).json({
+        message: "User not found",
+      });
     }
 
-    try {
-        const decode = readRefreshToken(refreshToken)
-        const { userId, role } = decode
+    console.log(
+      "COOKIE TOKEN === DB TOKEN:",
+      refreshToken === user.refreshToken
+    );
 
-        const user = await userModel.findById(userId)
-        if (!user) {
-            return res.status(401).json({
-                message: "User not found"
-            });
-        }        
+    if (refreshToken !== user.refreshToken) {
 
-        if(refreshToken !== user.refreshToken){
-            await userModel.findByIdAndUpdate(user.id,{
-                refreshToken: null
-            })
-            return res.status(401).json({
-                message: "resfresh token mismatch"
-            })
-        }
-
-        const newAccessToken = createAccessToken({
-            userId:user.id, role: user.role
-        })
-        const newRefreshToken = createRefreshToken({
-            userId:user.id, role: user.role
-        })
-
-        await userModel.findByIdAndUpdate(user._id,{
-            refreshToken:newRefreshToken,
-        })
-
-        res.cookie("refreshToken",newRefreshToken,{
-            httpOnly:true
-        })
-
-        res.status(200).json({
-            message:"token rotated successfully",
-            data:{
-                user:{
-                    name: user.name,
-                    email: user.email,
-                    id: user.id
-                },
-                accessToken: newAccessToken
-            }
-        })
-        
-    } catch (error) {
-        return res.status(401).json({
-            message:"Invalid refresh token"
-        })
-        
+      return res.status(401).json({
+        message: "refresh token mismatch",
+      });
     }
-}
+
+    const newAccessToken = createAccessToken({
+      userId: user.id,
+      role: user.role,
+    });
+
+    const newRefreshToken = createRefreshToken({
+      userId: user.id,
+      role: user.role,
+    });
+
+    await userModel.findByIdAndUpdate(user._id, {
+      refreshToken: newRefreshToken,
+    });
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+    });
+
+    return res.status(200).json({
+      message: "token rotated successfully",
+      data: {
+        user: {
+          name: user.name,
+          email: user.email,
+          id: user.id,
+        },
+        accessToken: newAccessToken,
+      },
+    });
+  } catch (error) {
+    console.error("REFRESH ERROR:", error);
+
+    return res.status(401).json({
+      message: "Invalid refresh token",
+    });
+  }
+};
 
 export const getMe = async (req,res)=>{
     const { userId, role } = req.user
@@ -184,3 +198,29 @@ export const getMe = async (req,res)=>{
         }
     })
 }
+
+export const logout = async (req, res) => {
+    try {
+        await userModel.findByIdAndUpdate(
+            req.user.userId,
+            {
+                $unset: {
+                    refreshToken: 1
+                }
+            }
+        );
+
+        res.clearCookie("refreshToken");
+
+        return res.status(200).json({
+            message: "Logout successful"
+        });
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            message: "Internal server error"
+        });
+    }
+};

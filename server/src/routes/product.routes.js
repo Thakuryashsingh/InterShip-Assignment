@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate, authenticateSeller } from "../middlewares/auth.middlieware.js";
-import { createProducts, listAllProducts, listAllProductToSeller, listProducts, unListProducts } from "../controllers/product.controller.js";
+import { createProducts, deleteProduct, listAllProducts, listAllProductToSeller, listProducts, unListProducts, updateProduct } from "../controllers/product.controller.js";
 import { listProductValidator, productsValidator, unListProductValidator } from "../validator/products.validation.js";
 import multer from "multer";
 
@@ -28,5 +28,8 @@ router.patch("/unlist/:id", authenticate, authenticateSeller, unListProductValid
 
 router.patch("/list/:id", authenticate, authenticateSeller, listProductValidator, listProducts)
 
+router.delete("/delete/:id", authenticate, authenticateSeller, deleteProduct)
+
+router.patch("/update/:id", authenticate, authenticateSeller, updateProduct)
 
 export default router;

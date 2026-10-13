@@ -29,7 +29,7 @@ export const getTokenClaims = (token) => {
 
 // Main API client
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: "https://intership-assignment-z0hd.onrender.com",
   withCredentials: true,
 });
 

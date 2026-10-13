@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -10,6 +10,7 @@ export default function AuthPage({ mode }) {
   const { login, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,7 +23,8 @@ export default function AuthPage({ mode }) {
     try {
       if (isRegister) await register({ name: form.name.trim(), email: form.email.trim(), password: form.password });
       else await login({ email: form.email.trim(), password: form.password });
-      navigate(location.state?.from ?? "/", { replace: true });
+      const returnTo = location.state?.from ?? searchParams.get("returnTo");
+      navigate(returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/", { replace: true });
     } catch (requestError) {
       setError(messageFrom(requestError));
     } finally {

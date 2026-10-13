@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { createBrowserRouter, Link, NavLink, Outlet, redirect, useNavigate, useRouteError } from "react-router-dom";
 import { ArrowRight, ClipboardList, LogOut, ShoppingBag, Store } from "lucide-react";
-import { useAuth } from "./context/AuthContext";
+import { hydrateSession, useAuth } from "./context/AuthContext";
 import AuthPage from "./pages/AuthPage";
 import ShopPage from "./pages/ShopPage";
 import ProductPage from "./pages/ProductPage";
@@ -9,9 +9,32 @@ import SellerPage from "./pages/SellerPage";
 import CartPage from "./pages/CartPage.jsx";
 import OrdersPage from "./pages/OrdersPage.jsx";
 
+async function requireSession({ request }) {
+  const session = await hydrateSession();
+  if (!session?.token) {
+    const returnTo = new URL(request.url).pathname;
+    throw redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+  }
+
+  return session;
+}
+
+async function redirectSignedInUser() {
+  const session = await hydrateSession();
+  if (session?.token) throw redirect("/");
+  return null;
+}
+
+async function requireSeller(args) {
+  const session = await requireSession(args);
+  if (session.user?.role !== "seller") throw redirect("/");
+  return session;
+}
+
 function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -24,15 +47,15 @@ function Header() {
     <header className="topbar">
       <Link className="wordmark" to="/" aria-label="Snitch home">snitch<span>.</span></Link>
       <nav className="main-nav" aria-label="Main navigation">
-        {user && <Link to="/">Shop</Link>}
-        {user && <Link to="/cart"><ShoppingBag size={16} /> Bag</Link>}
-        {user && <Link to="/orders"><ClipboardList size={16} /> Orders</Link>}
-        {user?.role === "seller" && <Link to="/seller"><Store size={16} /> Studio</Link>}
+        {user && <NavLink to="/" end>Shop</NavLink>}
+        {user && <NavLink to="/cart"><ShoppingBag size={16} /> Bag</NavLink>}
+        {user && <NavLink to="/orders"><ClipboardList size={16} /> Orders</NavLink>}
+        {user?.role === "seller" && <NavLink to="/seller"><Store size={16} /> Studio</NavLink>}
       </nav>
       <div className="nav-account">
         {user ? (
           <>
-            <span className="user-greeting">Hi, {user.name?.split(" ")[0]}</span>
+            <span className="user-greeting">Hi, {user.name?.split(" ")[0] ?? "there"}</span>
             <button className="icon-button" onClick={handleLogout} title="Log out" aria-label="Log out"><LogOut size={18} /></button>
           </>
         ) : (
@@ -43,37 +66,60 @@ function Header() {
   );
 }
 
-function RequireAuth({ children, seller = false }) {
-  const { token, user, loading } = useAuth();
-  const location = useLocation();
-  if (loading) return <div className="page-loading"><span className="loader" />Checking your session</div>;
-  if (!token) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  if (seller && user?.role !== "seller") return <Navigate to="/" replace />;
-  return children;
+function RouteErrorPage() {
+  const error = useRouteError();
+  const message = error?.status === 404
+    ? "That page or piece could not be found."
+    : "We couldn't load this page. Please try again.";
+
+  return (
+    <div className="route-error">
+      <span className="eyebrow">A SMALL DETOUR</span>
+      <h1>We lost the thread.</h1>
+      <p>{message}</p>
+      <Link className="button button-primary" to="/">Back to the collection <ArrowRight size={17} /></Link>
+    </div>
+  );
 }
 
-export default function App() {
-  const { loading, token } = useAuth();
+export function SessionFallback() {
+  return <div className="app-shell"><div className="page-loading" role="status"><span className="loader" />Restoring your session...</div></div>;
+}
+
+function AppLayout() {
+  const { loading } = useAuth();
+
   useEffect(() => {
     document.documentElement.classList.toggle("session-ready", !loading);
   }, [loading]);
 
+  if (loading) {
+    return <SessionFallback />;
+  }
+
   return (
     <div className="app-shell">
       <Header />
-      <main>
-        <Routes>
-          <Route path="/login" element={token ? <Navigate to="/" replace /> : <AuthPage mode="login" />} />
-          <Route path="/register" element={token ? <Navigate to="/" replace /> : <AuthPage mode="register" />} />
-          <Route path="/" element={<RequireAuth><ShopPage /></RequireAuth>} />
-          <Route path="/products/:id" element={<RequireAuth><ProductPage /></RequireAuth>} />
-          <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
-          <Route path="/orders" element={<RequireAuth><OrdersPage /></RequireAuth>} />
-          <Route path="/seller" element={<RequireAuth seller><SellerPage /></RequireAuth>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
+      <main><Outlet /></main>
       <footer className="site-footer"><span>SNITCH / EVERYDAY, CONSIDERED</span><ShoppingBag size={15} /><span>Independent style, made easy.</span></footer>
     </div>
   );
 }
+
+export const router = createBrowserRouter([
+  {
+    element: <AppLayout />,
+    errorElement: <RouteErrorPage />,
+    HydrateFallback: SessionFallback,
+    children: [
+      { path: "/login", loader: redirectSignedInUser, element: <AuthPage mode="login" /> },
+      { path: "/register", loader: redirectSignedInUser, element: <AuthPage mode="register" /> },
+      { path: "/", loader: requireSession, element: <ShopPage /> },
+      { path: "/products/:id", loader: requireSession, element: <ProductPage /> },
+      { path: "/cart", loader: requireSession, element: <CartPage /> },
+      { path: "/orders", loader: requireSession, element: <OrdersPage /> },
+      { path: "/seller", loader: requireSeller, element: <SellerPage /> },
+      { path: "*", loader: () => redirect("/") },
+    ],
+  },
+]);

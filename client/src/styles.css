@@ -21,6 +21,10 @@ button, input, textarea, select { font: inherit; }
 button, a, select { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; text-decoration: none; }
 button { color: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 3px;
+}
 ::selection { background: var(--lime); color: var(--ink); }
 
 .app-shell { width: min(1440px, 100%); min-height: 100vh; margin: 0 auto; padding: 0 5.25%; display: flex; flex-direction: column; }
@@ -29,8 +33,8 @@ button { color: inherit; }
 .wordmark span { color: var(--red); }
 .main-nav, .nav-account { display: flex; align-items: center; gap: 26px; }
 .main-nav { justify-content: center; font-size: 13px; }
-.main-nav a, .nav-login { display: inline-flex; gap: 7px; align-items: center; }
-.main-nav a:hover, .nav-login:hover { color: var(--red); }
+.main-nav a, .nav-login { display: inline-flex; gap: 7px; align-items: center; transition: color .18s; }
+.main-nav a:hover, .main-nav a.active, .nav-login:hover { color: var(--red); }
 .nav-account { justify-content: flex-end; font-size: 13px; }
 .user-greeting { color: var(--muted); }
 .icon-button { width: 38px; height: 38px; border: 1px solid transparent; border-radius: 50%; background: transparent; display: inline-grid; place-items: center; cursor: pointer; transition: border-color .18s, color .18s, background .18s; }
@@ -233,6 +237,10 @@ textarea.plain-input { resize: vertical; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgb(25 25 22 / 58%); }
 .edit-modal { position: relative; width: min(560px, 100%); max-height: min(90vh, 820px); overflow-y: auto; padding: 56px 25px 25px; background: var(--paper); }
 .modal-close { position: absolute; top: 12px; right: 12px; }
+.route-error { min-height: 58vh; padding: 90px 8%; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; }
+.route-error h1 { margin: 16px 0 8px; font: 48px Georgia, serif; font-weight: 400; }
+.route-error p { max-width: 400px; margin: 0 0 22px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.route-error .button { width: fit-content; }
 
 @media (max-width: 850px) {
   .app-shell { padding: 0 4%; }
@@ -294,6 +302,8 @@ textarea.plain-input { resize: vertical; }
   .cart-page > .back-link { left: 0; top: 22px; }
   .cart-heading h1 { font-size: 39px; }
   .orders-page { min-height: 410px; padding: 62px 4% 45px; }
+  .route-error { min-height: 55vh; padding: 65px 3%; }
+  .route-error h1 { font-size: 39px; }
   .orders-page h1 { font-size: 39px; }
   .orders-page:has(.orders-list) { padding-top: 56px; }
   .order-card-header { align-items: flex-start; flex-direction: column; }

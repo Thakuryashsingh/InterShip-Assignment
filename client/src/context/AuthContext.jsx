@@ -2,11 +2,73 @@ import { createContext, useContext, useEffect, useState } from "react";
 import api, { getStoredToken, getTokenClaims, refreshAccessToken, storeToken } from "../axiosInstance/axiosInstance";
 
 const AuthContext = createContext(null);
+let hydrationRequest;
+let cachedSession;
+let cachedToken;
+let hasHydrated = false;
 
-const userWithRole = (user, token) => ({
-  ...user,
-  role: getTokenClaims(token).role ?? "user",
-});
+const userWithRole = (user = {}, token) => {
+  const claims = getTokenClaims(token);
+  return {
+    ...user,
+    id: user.id ?? claims.userId,
+    role: user.role ?? claims.role ?? "user",
+  };
+};
+
+const rememberSession = (session) => {
+  cachedSession = session;
+  cachedToken = getStoredToken();
+  hasHydrated = true;
+};
+
+export function hydrateSession() {
+  const storedToken = getStoredToken();
+  if (hasHydrated && cachedToken === storedToken) return Promise.resolve(cachedSession);
+  if (hydrationRequest) return hydrationRequest;
+
+  hydrationRequest = (async () => {
+    const claims = storedToken ? getTokenClaims(storedToken) : {};
+    const accessTokenIsValid = Number(claims.exp) * 1000 > Date.now();
+
+    if (storedToken && accessTokenIsValid) {
+      try {
+        const { data } = await api.get("/auth/me", { skipAuthRefresh: true });
+        return { token: storedToken, user: userWithRole(data.data.user, storedToken) };
+      } catch (error) {
+        if (error.response?.status !== 401) {
+          return { token: storedToken, user: userWithRole({}, storedToken) };
+        }
+      }
+    }
+
+    try {
+      const { data } = await refreshAccessToken();
+      const nextToken = data.data.accessToken;
+      storeToken(nextToken);
+      return { token: nextToken, user: userWithRole(data.data.user, nextToken) };
+    } catch (error) {
+      const status = error.response?.status;
+      if (status === 401 || status === 403) {
+        storeToken(null);
+        return null;
+      }
+
+      return storedToken
+        ? { token: storedToken, user: userWithRole({}, storedToken) }
+        : null;
+    }
+  })()
+    .then((session) => {
+      rememberSession(session);
+      return session;
+    })
+    .finally(() => {
+      hydrationRequest = undefined;
+    });
+
+  return hydrationRequest;
+}
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(getStoredToken);
@@ -15,55 +77,36 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let active = true;
-    const restoreSession = async () => {
-      try {
-        const storedToken = getStoredToken();
-        const claims = storedToken ? getTokenClaims(storedToken) : {};
-        const accessTokenIsValid = claims.exp * 1000 > Date.now();
-
-        if (accessTokenIsValid) {
-          try {
-            const { data } = await api.get("/auth/me", { skipAuthRefresh: true });
-            if (active) {
-              setToken(storedToken);
-              setUser(userWithRole(data.data.user, storedToken));
-            }
-            return;
-          } catch {
-            // Fall through to refresh if the stored access token is rejected.
-          }
-        }
-
-        const { data } = await refreshAccessToken();
-        const nextToken = data.data.accessToken;
-        storeToken(nextToken);
-        if (active) {
-          setToken(nextToken);
-          setUser(userWithRole(data.data.user, nextToken));
-        }
-      } catch {
-        storeToken(null);
-        if (active) {
-          setToken(null);
-          setUser(null);
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    restoreSession();
 
     const expireSession = () => {
+      storeToken(null);
+      rememberSession(null);
       setToken(null);
       setUser(null);
+      setLoading(false);
     };
+
     const updateSession = (event) => {
       const { accessToken, user: refreshedUser } = event.detail;
+      const session = { token: accessToken, user: userWithRole(refreshedUser, accessToken) };
+      rememberSession(session);
       setToken(accessToken);
-      setUser(userWithRole(refreshedUser, accessToken));
+      setUser(session.user);
     };
+
     window.addEventListener("snitch:session-expired", expireSession);
     window.addEventListener("snitch:token-refreshed", updateSession);
+
+    hydrateSession()
+      .then((session) => {
+        if (!active) return;
+        setToken(session?.token ?? null);
+        setUser(session?.user ?? null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
     return () => {
       active = false;
       window.removeEventListener("snitch:session-expired", expireSession);
@@ -74,24 +117,33 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!token) return undefined;
 
-    const expiresAt = getTokenClaims(token).exp * 1000;
+    const expiresAt = Number(getTokenClaims(token).exp) * 1000;
     if (!expiresAt) return undefined;
 
-    const refreshTimer = window.setTimeout(() => {
-      refreshAccessToken().catch(() => {
-        storeToken(null);
-        setToken(null);
-        setUser(null);
-      });
-    }, Math.max(expiresAt - Date.now() - 60_000, 0));
+    let refreshTimer;
+    const refreshSession = () => {
+      refreshAccessToken().catch((error) => {
+        const status = error.response?.status;
+        if (status === 401 || status === 403) {
+          storeToken(null);
+          window.dispatchEvent(new Event("snitch:session-expired"));
+          return;
+        }
 
+        refreshTimer = window.setTimeout(refreshSession, 30_000);
+      });
+    };
+
+    refreshTimer = window.setTimeout(refreshSession, Math.max(expiresAt - Date.now() - 60_000, 0));
     return () => window.clearTimeout(refreshTimer);
   }, [token]);
 
   const acceptSession = (data) => {
     storeToken(data.accessToken);
-    setToken(data.accessToken);
-    setUser(userWithRole(data.user, data.accessToken));
+    const session = { token: data.accessToken, user: userWithRole(data.user, data.accessToken) };
+    rememberSession(session);
+    setToken(session.token);
+    setUser(session.user);
   };
 
   const login = async (credentials) => {
@@ -109,6 +161,7 @@ export function AuthProvider({ children }) {
       await api.post("/auth/logout");
     } finally {
       storeToken(null);
+      rememberSession(null);
       setToken(null);
       setUser(null);
     }

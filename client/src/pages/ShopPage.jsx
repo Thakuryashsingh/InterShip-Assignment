@@ -29,7 +29,7 @@ export default function ShopPage() {
       <section className="shop-heading">
         <div><span className="eyebrow">THE SNITCH SELECTION</span><h1>Wear your<br /><em>own story.</em></h1></div>
         <div className="shop-aside"><p>Considered pieces for wherever the day takes you. Find a fit that feels like yours.</p><a href="#collection" className="text-link">Explore the edit <ArrowDown size={16} /></a></div>
-        <div className="heading-stamp" aria-hidden="true">S<br /><span>26</span></div>
+        <div className="heading-stamp" aria-hidden="true">S<br /><span className="pr-4">26</span></div>
       </section>
       <section className="catalog" id="collection">
         <div className="catalog-toolbar"><div><span className="eyebrow">SHOP ALL</span><span className="result-count">{loading ? "Loading" : `${shown.length} pieces`}</span></div><div className="catalog-controls"><label className="search-box"><Search size={16} /><input aria-label="Search products" placeholder="Find a piece" value={query} onChange={(event) => setQuery(event.target.value)} /></label><label className="sort-select"><span>Sort</span><select aria-label="Sort products" value={sort} onChange={(event) => setSort(event.target.value)}><option value="featured">Featured</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label></div></div>

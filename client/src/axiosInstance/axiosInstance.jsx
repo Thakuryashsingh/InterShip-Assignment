@@ -29,13 +29,13 @@ export const getTokenClaims = (token) => {
 
 // Main API client
 const api = axios.create({
-  baseURL: "https://intership-assignment-z0hd.onrender.com/api",
+  baseURL: "/api",
   withCredentials: true,
 });
 
 // Separate client for refresh request
 const refreshClient = axios.create({
-  baseURL: "https://intership-assignment-z0hd.onrender.com/api",
+  baseURL: "/api",
   withCredentials: true,
 });
 

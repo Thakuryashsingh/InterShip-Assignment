@@ -2,6 +2,21 @@ import userModel from "../models/auth.models.js";
 import bcrypt from "bcryptjs";
 import { createAccessToken, createRefreshToken, readRefreshToken } from "../utils/auth.utils.js";
 
+const refreshCookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/api/auth",
+};
+
+const clearRefreshCookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/auth",
+};
+
 export const register = async (req,res)=>{
     const {name, email , password } = req.body;
 
@@ -35,9 +50,7 @@ export const register = async (req,res)=>{
         role:user.role,
     })
 
-    res.cookie("refreshToken", refreshToken, {
-        httpOnly:true
-    })
+    res.cookie("refreshToken", refreshToken, refreshCookieOptions)
 
     await userModel.findByIdAndUpdate(user.id, {
         refreshToken
@@ -87,9 +100,7 @@ export const login = async (req,res)=>{
 
     await userModel.findOneAndUpdate({email},{refreshToken});
 
-    res.cookie("refreshToken",refreshToken,{
-        httpOnly:true
-    })
+    res.cookie("refreshToken",refreshToken,refreshCookieOptions)
 
     res.status(200).json({
         message:"User loggedIn successfully",
@@ -105,9 +116,7 @@ export const login = async (req,res)=>{
 }
 
 export const refresh = async (req, res) => {
-  const { refreshToken } = req.cookies?.refreshToken;
-
-  console.log("COOKIE REFRESH TOKEN:", refreshToken);
+  const refreshToken = req.cookies?.refreshToken;
 
   if (!refreshToken) {
     return res.status(401).json({
@@ -118,24 +127,15 @@ export const refresh = async (req, res) => {
   try {
     const decode = readRefreshToken(refreshToken);
 
-    console.log("DECODED TOKEN:", decode);
-
-    const { userId, role } = decode;
+    const { userId } = decode;
 
     const user = await userModel.findById(userId);
-
-    console.log("USER FOUND:", !!user);
 
     if (!user) {
       return res.status(401).json({
         message: "User not found",
       });
     }
-
-    console.log(
-      "COOKIE TOKEN === DB TOKEN:",
-      refreshToken === user.refreshToken
-    );
 
     if (refreshToken !== user.refreshToken) {
 
@@ -158,9 +158,7 @@ export const refresh = async (req, res) => {
       refreshToken: newRefreshToken,
     });
 
-    res.cookie("refreshToken", newRefreshToken, {
-      httpOnly: true,
-    });
+    res.cookie("refreshToken", newRefreshToken, refreshCookieOptions);
 
     return res.status(200).json({
       message: "token rotated successfully",
@@ -174,7 +172,7 @@ export const refresh = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("REFRESH ERROR:", error);
+    console.error("Could not refresh authentication session:", error.message);
 
     return res.status(401).json({
       message: "Invalid refresh token",
@@ -210,7 +208,7 @@ export const logout = async (req, res) => {
             }
         );
 
-        res.clearCookie("refreshToken");
+        res.clearCookie("refreshToken", clearRefreshCookieOptions);
 
         return res.status(200).json({
             message: "Logout successful"

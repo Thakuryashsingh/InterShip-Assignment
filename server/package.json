@@ -5,21 +5,24 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon ./src/server.js"
+    "dev": "nodemon ./src/server.js",
+    "seed:products": "node src/seed/seedProducts.js",
+    "seed:users": "node src/seed/seedUsers.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@faker-js/faker": "^10.6.0",
     "@imagekit/nodejs": "^7.12.1",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
-    "dotenv": "^18.0.1",
+    "dotenv": "^18.0.6",
     "express": "^5.2.1",
     "express-validator": "^7.3.2",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.10.1",
+    "mongoose": "^9.11.0",
     "multer": "^2.4.0"
   }
 }
